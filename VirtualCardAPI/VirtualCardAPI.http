@@ -1,0 +1,6 @@
+@VirtualCardAPI_HostAddress = http://localhost:5108
+
+GET {{VirtualCardAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

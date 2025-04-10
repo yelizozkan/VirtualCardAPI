@@ -1,13 +1,15 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using VirtualCardAPI.Models;
-using VirtualCardAPI.Repositories;
 using Microsoft.AspNetCore.JsonPatch;
 using VirtualCardAPI.Extensions;
 using VirtualCardAPI.Validators;
+using VirtualCardAPI.Repositories.Abstract;
+using VirtualCardAPI.DTOs.VirtualCard;
+using Microsoft.AspNetCore.Authorization;
 
 
 
-namespace VirtualCardAPI.Controllers 
+namespace VirtualCardAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
@@ -20,54 +22,95 @@ namespace VirtualCardAPI.Controllers
             _repository = repository;
         }
 
+      
         [HttpGet]
         public IActionResult GetAllCards()
         {
-            var cards = _repository.GetAll();
+            var cards = _repository.GetAll()
+                .Select(card => new VirtualCardResponse
+                {
+                    Id = card.Id,
+                    CardHolder = card.CardHolder,
+                    MaskedCardNumber = MaskCardNumber(card.CardNumber),
+                    ExpirationDate = card.ExpirationDate,
+                    Balance = card.Balance,
+                    IsActive = card.IsActive
+                });
+
             return Ok(cards);
         }
 
+
+        [Authorize]
         [HttpPost]
-        public IActionResult CreateCard([FromBody] VirtualCard card)
+        public IActionResult CreateCard([FromBody] VirtualCardCreateRequest request)
         {
-            if (!ModelState.IsValid)
+            var card = new VirtualCard
             {
-                return BadRequest(new ErrorDetails
-                {
-                    StatusCode = 400,
-                    Message = "Invalid data sent."
-                });
-            }
+                CardHolder = request.CardHolder,
+                CardNumber = request.CardNumber,
+                ExpirationDate = request.ExpirationDate,
+                Balance = request.Balance,
+                IsActive = true
+            };
 
             _repository.Add(card);
-            return CreatedAtAction(nameof(GetCardById), new { id = card.Id }, card);
+
+            var response = new VirtualCardResponse
+            {
+                Id = card.Id,
+                CardHolder = card.CardHolder,
+                MaskedCardNumber = MaskCardNumber(card.CardNumber),
+                ExpirationDate = card.ExpirationDate,
+                Balance = card.Balance,
+                IsActive = card.IsActive
+            };
+
+            return CreatedAtAction(nameof(GetCardById), new { id = card.Id }, response);
         }
 
-        [HttpPut("{id}")]
-        public IActionResult UpdateCard(int id, [FromBody] VirtualCard card)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(new ErrorDetails
-                {
-                    StatusCode = 400,
-                    Message = "Invalid data sent."
-                });
-            }
+       
 
+        [HttpGet("{id}")]
+        public IActionResult GetCardById(int id)
+        {
+            var card = _repository.GetById(id);
+            if (card == null)
+                return NotFound();
+
+            var response = new VirtualCardResponse
+            {
+                Id = card.Id,
+                CardHolder = card.CardHolder,
+                MaskedCardNumber = MaskCardNumber(card.CardNumber),
+                ExpirationDate = card.ExpirationDate,
+                Balance = card.Balance,
+                IsActive = card.IsActive
+            };
+
+            return Ok(response);
+        }
+
+
+        [Authorize]
+        [HttpPut("{id}")]
+        public IActionResult UpdateCard(int id, [FromBody] VirtualCardUpdateRequest request)
+        {
             var existingCard = _repository.GetById(id);
             if (existingCard == null)
                 return NotFound();
 
-            existingCard.CardHolder = card.CardHolder;
-            existingCard.ExpirationDate = card.ExpirationDate;
-            existingCard.Balance = card.Balance;
+            existingCard.CardHolder = request.CardHolder;
+            existingCard.ExpirationDate = request.ExpirationDate;
+            existingCard.Balance = request.Balance;
+            existingCard.IsActive = request.IsActive;
 
             _repository.Update(existingCard);
             return NoContent();
         }
 
 
+        [Authorize]
         [HttpDelete("{id}")]
         public IActionResult DeleteCard(int id)
         {
@@ -79,21 +122,30 @@ namespace VirtualCardAPI.Controllers
             return NoContent();
         }
 
+        
 
-
-        [HttpGet("{id}")]
-        public IActionResult GetCardById(int id)
+        [HttpGet("by-number/{cardNumber}")]
+        public IActionResult GetCardByNumber(string cardNumber)
         {
-            var card = _repository.GetById(id);
+            var card = _repository.GetByCardNumber(cardNumber);
             if (card == null)
-            {
-                return NotFound(new ErrorDetails { StatusCode = 404, Message = "Card not found." });
-            }
+                return NotFound();
 
-            return Ok(card);
+            var response = new VirtualCardResponse
+            {
+                Id = card.Id,
+                CardHolder = card.CardHolder,
+                MaskedCardNumber = MaskCardNumber(card.CardNumber),
+                ExpirationDate = card.ExpirationDate,
+                Balance = card.Balance,
+                IsActive = card.IsActive
+            };
+
+            return Ok(response);
         }
 
 
+        
         [HttpGet("list")]
         public IActionResult GetFilteredCards([FromQuery] string name, [FromQuery] string sortBy)
         {
@@ -114,33 +166,52 @@ namespace VirtualCardAPI.Controllers
                 };
             }
 
-            return Ok(cards);
+            var response = cards.Select(card => new VirtualCardResponse
+            {
+                Id = card.Id,
+                CardHolder = card.CardHolder,
+                MaskedCardNumber = MaskCardNumber(card.CardNumber),
+                ExpirationDate = card.ExpirationDate,
+                Balance = card.Balance,
+                IsActive = card.IsActive
+            });
+
+            return Ok(response);
         }
 
+
+        [Authorize]
         [HttpPatch("{id}")]
         public IActionResult UpdatePartialCard(int id, [FromBody] JsonPatchDocument<VirtualCard> patchDoc)
         {
             if (patchDoc == null)
-            {
                 return BadRequest("Patch document is null.");
-            }
 
             var existingCard = _repository.GetById(id);
             if (existingCard == null)
-            {
                 return NotFound();
-            }
 
-            patchDoc.ApplyTo(existingCard, (Microsoft.AspNetCore.JsonPatch.Adapters.IObjectAdapter)ModelState);
+            patchDoc.ApplyTo(existingCard); 
 
-            if (!TryValidateModel(existingCard))
-            {
+            
+            if (!TryValidateModel(existingCard)) 
                 return BadRequest(ModelState);
-            }
 
             _repository.Update(existingCard);
             return NoContent();
         }
+
+
+
+
+        private string MaskCardNumber(string cardNumber)
+        {
+            if (string.IsNullOrWhiteSpace(cardNumber) || cardNumber.Length < 4)
+                return "****";
+
+            return $"**** **** **** {cardNumber[^4..]}";
+        }
+
 
     }
 }

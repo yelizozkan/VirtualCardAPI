@@ -1,8 +1,9 @@
 ﻿using VirtualCardAPI.Models;
 using VirtualCardAPI.Context;
-using Microsoft.EntityFrameworkCore;    
+using Microsoft.EntityFrameworkCore;
+using VirtualCardAPI.Repositories.Abstract;
 
-namespace VirtualCardAPI.Repositories
+namespace VirtualCardAPI.Repositories.Concrete
 {
     public class VirtualCardRepository : IVirtualCardRepository
     {
@@ -17,7 +18,7 @@ namespace VirtualCardAPI.Repositories
         {
             return _context.VirtualCards.ToList();
         }
-       
+
 
         public VirtualCard GetById(int id)
         {
@@ -40,6 +41,11 @@ namespace VirtualCardAPI.Repositories
         {
             _context.VirtualCards.Remove(card);
             _context.SaveChanges();
+        }
+
+        public VirtualCard GetByCardNumber(string cardNumber)
+        {
+            return _context.VirtualCards.FirstOrDefault(c => c.CardNumber == cardNumber);
         }
     }
 }

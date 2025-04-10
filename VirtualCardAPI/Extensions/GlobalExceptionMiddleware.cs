@@ -2,31 +2,39 @@
 
 namespace VirtualCardAPI.Extensions
 {
-    public class ExceptionMiddleware
+    public class GlobalExceptionMiddleware
     {
         private readonly RequestDelegate _next;
+        private readonly ILogger<GlobalExceptionMiddleware> _logger;
 
-        public ExceptionMiddleware(RequestDelegate next)
+        public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
         {
             _next = next;
+            _logger = logger;
         }
 
-        public async Task InvokeAsync(HttpContext httpContext)
+
+        public async Task InvokeAsync(HttpContext context)
         {
             try
             {
-                await _next(httpContext);
+                await _next(context);
             }
+
             catch (Exception ex)
             {
-                await HandleExceptionAsync(httpContext, ex);
+                _logger.LogError(ex, "Unhandled exception occurred."); 
+                await HandleExceptionAsync(context);
             }
+
         }
 
-        private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+        private static Task HandleExceptionAsync(HttpContext context)
         {
+
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+
 
             var errorResponse = new ErrorDetails
             {
@@ -34,7 +42,11 @@ namespace VirtualCardAPI.Extensions
                 Message = "An unexpected error occurred on the server side."
             };
 
+
             return context.Response.WriteAsync(errorResponse.ToString());
+
         }
+
+       
     }
 }

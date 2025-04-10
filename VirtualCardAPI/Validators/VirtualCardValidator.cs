@@ -1,27 +1,26 @@
 ﻿using FluentValidation;
+using VirtualCardAPI.DTOs.VirtualCard;
 using VirtualCardAPI.Models;
 
 namespace VirtualCardAPI.Validators
 {
-    public class VirtualCardValidator : AbstractValidator<VirtualCard>
+    public class VirtualCardValidator : AbstractValidator<VirtualCardCreateRequest>
     {
         public VirtualCardValidator()
         {
-            RuleFor(c => c.CardNumber)
+            RuleFor(x => x.CardNumber)
+               .NotEmpty()
+               .CreditCard();
+
+            RuleFor(x => x.CardHolder)
                 .NotEmpty()
-                .CreditCard().WithMessage("Invalid credit card number format");
+                .MinimumLength(3);
 
-            RuleFor(c => c.CardHolder)
-                .NotEmpty()
-                .MaximumLength(50).WithMessage("Card holder name cannot exceed 50 characters")
-                .Matches("^[a-zA-Z ]+$").WithMessage("Card holder name should only contain letters and spaces");
+            RuleFor(x => x.ExpirationDate)
+                .GreaterThan(DateTime.Now).WithMessage("Son kullanma tarihi geçmiş olamaz.");
 
-            RuleFor(c => c.ExpirationDate)
-                .GreaterThan(DateTime.Now)
-                .LessThan(DateTime.Now.AddYears(10)).WithMessage("Expiration date cannot be more than 10 years in the future");
-
-            RuleFor(c => c.Balance)
-                .GreaterThanOrEqualTo(0).WithMessage("Balance cannot be negative");
+            RuleFor(x => x.Balance)
+                .GreaterThanOrEqualTo(0);
         }   
     }
 }

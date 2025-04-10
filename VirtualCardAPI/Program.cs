@@ -1,9 +1,13 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using VirtualCardAPI.Context;
 using VirtualCardAPI.Extensions;
-using VirtualCardAPI.Repositories;
+using VirtualCardAPI.Repositories.Abstract;
+using VirtualCardAPI.Repositories.Concrete;
+using VirtualCardAPI.Services.Abstract;
+using VirtualCardAPI.Services.Concrete;
 using VirtualCardAPI.Validators;
 
 
@@ -26,6 +30,26 @@ builder.Services.AddSwaggerGen();
 
 
 builder.Services.AddScoped<IVirtualCardRepository, VirtualCardRepository>();
+
+builder.Services.AddScoped<IAuthService, FakeAuthService>();
+
+builder.Services.AddHttpContextAccessor();
+
+
+builder.Services.ConfigureFakeServices();
+
+
+
+
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/api/auth/login";
+        options.LogoutPath = "/api/auth/logout";
+    });
+
+
+builder.Services.AddAuthorization();
 
 
 
@@ -52,9 +76,12 @@ app.Use(async (context, next) =>
     }
 });
 
-app.UseMiddleware<ExceptionMiddleware>();
+app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseMiddleware<LoggingMiddleware>();
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 
